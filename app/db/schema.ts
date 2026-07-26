@@ -5,6 +5,8 @@ import {
   real,
   unique,
   check,
+  index,
+  type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
@@ -288,3 +290,26 @@ export const videoWatchEvents = sqliteTable("video_watch_events", {
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
 });
+
+export const comments = sqliteTable(
+  "comments",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    lessonId: integer("lesson_id")
+      .notNull()
+      .references(() => lessons.id),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    parentCommentId: integer("parent_comment_id").references(
+      (): AnySQLiteColumn => comments.id
+    ),
+    body: text("body").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    deletedAt: text("deleted_at"),
+    deletedBy: integer("deleted_by").references(() => users.id),
+  },
+  (table) => [index("comments_lesson_id_idx").on(table.lessonId)]
+);

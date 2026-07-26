@@ -1,0 +1,12 @@
+Whe you have a function with more than one parameter with the same type (i.e. `string`), use an object parameter instead of the positional parameters.
+
+
+```ts
+//BAD
+const addUserToPost = (userId: string, postId: string) => {};
+
+// GOOD
+const addUserToPost = (opts: {userId: string; postId: string}) => {};
+
+
+```

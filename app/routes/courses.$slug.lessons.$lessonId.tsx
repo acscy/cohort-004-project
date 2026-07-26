@@ -26,7 +26,15 @@ import {
   getBestAttempt,
 } from "~/services/quizService";
 import { computeResult } from "~/services/quizScoringService";
-import { LessonProgressStatus } from "~/db/schema";
+import { LessonProgressStatus, UserRole } from "~/db/schema";
+import { getUserById } from "~/services/userService";
+import {
+  getCommentsForLesson,
+  createComment,
+  getCommentById,
+  softDeleteComment,
+} from "~/services/commentService";
+import { LessonComments } from "~/components/lesson-comments";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import {
@@ -63,6 +71,16 @@ const lessonParamsSchema = z.object({
 
 const markCompleteSchema = z.object({
   intent: z.literal("mark-complete"),
+});
+
+const addCommentSchema = z.object({
+  intent: z.literal("add-comment"),
+  body: z.string().trim().min(1, "Comment cannot be empty.").max(2000),
+});
+
+const deleteCommentSchema = z.object({
+  intent: z.literal("delete-comment"),
+  commentId: z.coerce.number().int(),
 });
 
 export function meta({ data: loaderData }: Route.MetaArgs) {
@@ -248,6 +266,28 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     }
   }
 
+  const rawComments = getCommentsForLesson(lessonId);
+  const lessonComments = rawComments.map((c) => ({
+    id: c.id,
+    body: c.body,
+    createdAt: c.createdAt,
+    authorName: c.authorName,
+    authorAvatarUrl: c.authorAvatarUrl,
+    isInstructor: c.authorRole === UserRole.Instructor,
+  }));
+
+  let currentUserRole: string | null = null;
+  if (currentUserId) {
+    const currentUserRecord = getUserById(currentUserId);
+    currentUserRole = currentUserRecord?.role ?? null;
+  }
+
+  const canComment =
+    !!currentUserId && (enrolled || course.instructorId === currentUserId);
+  const canDeleteComments =
+    currentUserRole === UserRole.Admin ||
+    (!!currentUserId && course.instructorId === currentUserId);
+
   return {
     course: {
       id: courseWithDetails.id,
@@ -281,6 +321,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     pppBlocked,
     pppBlockedCountry,
     pppPurchaseCountry,
+    comments: lessonComments,
+    canComment,
+    canDeleteComments,
   };
 }
 
@@ -329,6 +372,52 @@ export async function action({ params, request }: Route.ActionArgs) {
     }
 
     return { quizResult: result };
+  }
+
+  if (intent === "add-comment") {
+    const parsed = parseFormData(formData, addCommentSchema);
+    if (!parsed.success) {
+      throw data(Object.values(parsed.errors)[0] ?? "Invalid comment.", {
+        status: 400,
+      });
+    }
+
+    const isEnrolled = isUserEnrolled(currentUserId, course.id);
+    const isInstructorOfCourse = course.instructorId === currentUserId;
+    if (!isEnrolled && !isInstructorOfCourse) {
+      throw data("You must be enrolled in this course to comment.", {
+        status: 403,
+      });
+    }
+
+    const newComment = createComment(lessonId, currentUserId, parsed.data.body);
+    return { newComment };
+  }
+
+  if (intent === "delete-comment") {
+    const parsed = parseFormData(formData, deleteCommentSchema);
+    if (!parsed.success) {
+      throw data("Invalid comment ID.", { status: 400 });
+    }
+
+    const currentUser = getUserById(currentUserId);
+    const isInstructorOfCourse = course.instructorId === currentUserId;
+    if (
+      !currentUser ||
+      (currentUser.role !== UserRole.Admin && !isInstructorOfCourse)
+    ) {
+      throw data("You do not have permission to delete this comment.", {
+        status: 403,
+      });
+    }
+
+    const existingComment = getCommentById(parsed.data.commentId);
+    if (!existingComment || existingComment.lessonId !== lessonId) {
+      throw data("Comment not found.", { status: 404 });
+    }
+
+    softDeleteComment(parsed.data.commentId, currentUserId);
+    return { success: true };
   }
 
   throw data("Invalid action", { status: 400 });
@@ -382,6 +471,9 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
     pppBlocked,
     pppBlockedCountry,
     pppPurchaseCountry,
+    comments,
+    canComment,
+    canDeleteComments,
   } = loaderData;
   const [autoplay, toggleAutoplay] = useAutoplay();
   const fetcher = useFetcher({ key: `mark-complete-${lesson.id}` });
@@ -591,6 +683,13 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
               )}
             </div>
           )}
+
+          <LessonComments
+            lessonId={lesson.id}
+            comments={comments}
+            canComment={canComment}
+            canDeleteComments={canDeleteComments}
+          />
 
           {/* Prev/Next Navigation */}
           <div className="flex items-center justify-between border-t pt-6">
