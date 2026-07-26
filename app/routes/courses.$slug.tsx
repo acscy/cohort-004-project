@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
+import { z } from "zod";
 import type { Route } from "./+types/courses.$slug";
 import {
   getCourseBySlug,
@@ -13,7 +14,13 @@ import {
   getLessonProgressForCourse,
   getNextIncompleteLesson,
 } from "~/services/progressService";
+import {
+  getCourseRatingSummary,
+  getUserReviewForCourse,
+  upsertCourseReview,
+} from "~/services/reviewService";
 import { getCurrentUserId } from "~/lib/session";
+import { parseFormData } from "~/lib/validation";
 import { LessonProgressStatus } from "~/db/schema";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -37,6 +44,7 @@ import {
 } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
 import { UserAvatar } from "~/components/user-avatar";
+import { StarRatingSummary, StarRatingInput } from "~/components/star-rating";
 import { data, isRouteErrorResponse } from "react-router";
 import { formatDuration, formatPrice } from "~/lib/utils";
 import { renderMarkdown } from "~/lib/markdown.server";
@@ -102,6 +110,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     : courseWithDetails.price;
   const tierInfo = getCountryTierInfo(country);
 
+  const ratingSummary = getCourseRatingSummary(course.id);
+  let userReview: { rating: number } | null = null;
+  if (currentUserId && enrolled && course.instructorId !== currentUserId) {
+    userReview = getUserReviewForCourse(currentUserId, course.id) ?? null;
+  }
+
   return {
     course: courseWithDetails,
     salesCopyHtml,
@@ -113,10 +127,43 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     currentUserId,
     pppPrice,
     tierInfo,
+    ratingSummary,
+    userReview,
   };
 }
 
-// No action — enrollment is handled via the purchase confirmation page
+const rateCourseActionSchema = z.object({
+  intent: z.literal("rate-course"),
+  rating: z.coerce.number().int().min(1).max(5),
+});
+
+export async function action({ params, request }: Route.ActionArgs) {
+  const course = getCourseBySlug(params.slug);
+  if (!course) {
+    throw data("Course not found", { status: 404 });
+  }
+
+  const currentUserId = await getCurrentUserId(request);
+  if (!currentUserId) {
+    throw data("You must be logged in.", { status: 401 });
+  }
+
+  if (course.instructorId === currentUserId) {
+    throw data("Instructors cannot rate their own course.", { status: 403 });
+  }
+
+  if (!isUserEnrolled(currentUserId, course.id)) {
+    throw data("You must be enrolled to rate this course.", { status: 403 });
+  }
+
+  const parsed = parseFormData(await request.formData(), rateCourseActionSchema);
+  if (!parsed.success) {
+    throw data("Invalid rating.", { status: 400 });
+  }
+
+  upsertCourseReview(currentUserId, course.id, parsed.data.rating);
+  return { success: true };
+}
 
 export function HydrateFallback() {
   return (
@@ -181,6 +228,8 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     currentUserId,
     pppPrice,
     tierInfo,
+    ratingSummary,
+    userReview,
   } = loaderData;
   const isInstructor = currentUserId === course.instructorId;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -302,6 +351,10 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
           {course.description}
         </p>
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <StarRatingSummary
+            average={ratingSummary.average}
+            count={ratingSummary.count}
+          />
           <span className="flex items-center gap-1.5">
             <UserAvatar
               name={course.instructorName}
@@ -413,6 +466,14 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                       Buy More Seats
                     </Button>
                   </Link>
+                  {!isInstructor && (
+                    <div className="border-t pt-4">
+                      <p className="mb-2 text-sm font-medium">
+                        Rate this course
+                      </p>
+                      <StarRatingInput defaultValue={userReview?.rating ?? 0} />
+                    </div>
+                  )}
                 </>
               ) : (
                 enrollButton
