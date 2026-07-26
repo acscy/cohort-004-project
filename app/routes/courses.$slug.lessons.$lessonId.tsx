@@ -169,8 +169,11 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     enrolled = isUserEnrolled(currentUserId, course.id);
 
     if (enrolled) {
-      bookmarkedLessonIds = getBookmarkedLessonIds(currentUserId, course.id);
-      isBookmarked = isLessonBookmarked(currentUserId, lessonId);
+      bookmarkedLessonIds = getBookmarkedLessonIds({
+        userId: currentUserId,
+        courseId: course.id,
+      });
+      isBookmarked = isLessonBookmarked({ userId: currentUserId, lessonId });
 
       // Mark lesson as in-progress when viewed
       markLessonInProgress(currentUserId, lessonId);
@@ -368,7 +371,7 @@ export async function action({ params, request }: Route.ActionArgs) {
       });
     }
 
-    const result = toggleBookmark(currentUserId, lessonId);
+    const result = toggleBookmark({ userId: currentUserId, lessonId });
     return { success: true, bookmarked: result.bookmarked };
   }
 

@@ -100,7 +100,10 @@ export async function loader({ params, request }: Route.LoaderArgs) {
       const nextLesson = getNextIncompleteLesson(currentUserId, course.id);
       nextLessonId = nextLesson?.id ?? null;
 
-      bookmarkedLessonIds = getBookmarkedLessonIds(currentUserId, course.id);
+      bookmarkedLessonIds = getBookmarkedLessonIds({
+        userId: currentUserId,
+        courseId: course.id,
+      });
     }
   }
 

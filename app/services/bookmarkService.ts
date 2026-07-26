@@ -4,9 +4,10 @@ import { lessonBookmarks, lessons, modules } from "~/db/schema";
 
 // ─── Bookmark Service ───
 // Handles per-student lesson bookmarks. Private to each user, persist until
-// manually removed. Uses positional parameters (project convention).
+// manually removed.
 
-export function isLessonBookmarked(userId: number, lessonId: number) {
+export function isLessonBookmarked(opts: { userId: number; lessonId: number }) {
+  const { userId, lessonId } = opts;
   const existing = db
     .select()
     .from(lessonBookmarks)
@@ -21,7 +22,8 @@ export function isLessonBookmarked(userId: number, lessonId: number) {
   return !!existing;
 }
 
-export function toggleBookmark(userId: number, lessonId: number) {
+export function toggleBookmark(opts: { userId: number; lessonId: number }) {
+  const { userId, lessonId } = opts;
   const existing = db
     .select()
     .from(lessonBookmarks)
@@ -42,7 +44,11 @@ export function toggleBookmark(userId: number, lessonId: number) {
   return { bookmarked: true };
 }
 
-export function getBookmarkedLessonIds(userId: number, courseId: number) {
+export function getBookmarkedLessonIds(opts: {
+  userId: number;
+  courseId: number;
+}) {
+  const { userId, courseId } = opts;
   const rows = db
     .select({ lessonId: lessonBookmarks.lessonId })
     .from(lessonBookmarks)
