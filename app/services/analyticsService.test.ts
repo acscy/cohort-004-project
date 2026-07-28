@@ -18,6 +18,7 @@ import {
   getCourseCompletionRate,
   getCourseRatingMetrics,
   getCourseRevenueTrend,
+  getPlatformAnalyticsSummary,
 } from "./analyticsService";
 
 const NOW = new Date("2026-07-26T12:00:00.000Z");
@@ -90,8 +91,12 @@ describe("analyticsService", () => {
 
     it("returns the correct number of days per range", () => {
       expect(getCourseRevenueSeries(base.course.id, "7d", NOW)).toHaveLength(7);
-      expect(getCourseRevenueSeries(base.course.id, "30d", NOW)).toHaveLength(30);
-      expect(getCourseRevenueSeries(base.course.id, "90d", NOW)).toHaveLength(90);
+      expect(getCourseRevenueSeries(base.course.id, "30d", NOW)).toHaveLength(
+        30
+      );
+      expect(getCourseRevenueSeries(base.course.id, "90d", NOW)).toHaveLength(
+        90
+      );
     });
   });
 
@@ -304,6 +309,136 @@ describe("analyticsService", () => {
         recentRevenueCents: 0,
         priorRevenueCents: 0,
         percentChange: null,
+      });
+    });
+  });
+
+  describe("getPlatformAnalyticsSummary", () => {
+    it("returns zeros and no top earner when the platform has no purchases or enrollments", () => {
+      expect(getPlatformAnalyticsSummary("30d", NOW)).toEqual({
+        totalRevenueCents: 0,
+        totalEnrollments: 0,
+        topEarningCourse: null,
+      });
+    });
+
+    it("sums revenue and enrollments across courses from different instructors", () => {
+      const otherInstructor = testDb
+        .insert(schema.users)
+        .values({
+          name: "Other Instructor",
+          email: "other-instructor@example.com",
+          role: schema.UserRole.Instructor,
+        })
+        .returning()
+        .get();
+
+      const otherCourse = testDb
+        .insert(schema.courses)
+        .values({
+          title: "Other Course",
+          slug: "other-course",
+          description: "Another course",
+          instructorId: otherInstructor.id,
+          categoryId: base.category.id,
+          status: schema.CourseStatus.Published,
+        })
+        .returning()
+        .get();
+
+      testDb
+        .insert(schema.purchases)
+        .values([
+          {
+            userId: base.user.id,
+            courseId: base.course.id,
+            pricePaid: 3000,
+            country: "US",
+            createdAt: daysAgoIso(1),
+          },
+          {
+            userId: base.user.id,
+            courseId: otherCourse.id,
+            pricePaid: 5000,
+            country: "US",
+            createdAt: daysAgoIso(2),
+          },
+        ])
+        .run();
+
+      testDb
+        .insert(schema.enrollments)
+        .values([
+          {
+            userId: base.user.id,
+            courseId: base.course.id,
+            enrolledAt: daysAgoIso(1),
+          },
+          {
+            userId: base.user.id,
+            courseId: otherCourse.id,
+            enrolledAt: daysAgoIso(2),
+          },
+        ])
+        .run();
+
+      const summary = getPlatformAnalyticsSummary("30d", NOW);
+      expect(summary.totalRevenueCents).toBe(8000);
+      expect(summary.totalEnrollments).toBe(2);
+      expect(summary.topEarningCourse).toEqual({
+        courseId: otherCourse.id,
+        title: "Other Course",
+        revenueCents: 5000,
+      });
+    });
+
+    it("excludes purchases and enrollments older than the selected range", () => {
+      testDb
+        .insert(schema.purchases)
+        .values({
+          userId: base.user.id,
+          courseId: base.course.id,
+          pricePaid: 9999,
+          country: "US",
+          createdAt: daysAgoIso(45),
+        })
+        .run();
+
+      testDb
+        .insert(schema.enrollments)
+        .values({
+          userId: base.user.id,
+          courseId: base.course.id,
+          enrolledAt: daysAgoIso(45),
+        })
+        .run();
+
+      const summary = getPlatformAnalyticsSummary("30d", NOW);
+      expect(summary).toEqual({
+        totalRevenueCents: 0,
+        totalEnrollments: 0,
+        topEarningCourse: null,
+      });
+    });
+
+    it("includes all-time data for the 'all' range regardless of age", () => {
+      testDb
+        .insert(schema.purchases)
+        .values({
+          userId: base.user.id,
+          courseId: base.course.id,
+          pricePaid: 9999,
+          country: "US",
+          createdAt: daysAgoIso(900),
+        })
+        .run();
+
+      const summary = getPlatformAnalyticsSummary("all", NOW);
+      expect(summary.totalRevenueCents).toBe(9999);
+      expect(summary.topEarningCourse).toEqual({
+        courseId: base.course.id,
+        title: "Test Course",
+        revenueCents: 9999,
       });
     });
   });
