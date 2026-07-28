@@ -1,6 +1,6 @@
 # 04 — Completion-rate and rating KPI tiles
 
-**What to build:** In the same analytics section as ticket 03, an instructor sees two additional KPI tiles: completion rate and average rating (with review count). All three v1 KPIs (revenue, completion, rating) are now visible together for the single-course case, all backed by ticket 02's tested service functions.
+**What to build:** On the same `/instructor/analytics` page as ticket 03, an instructor sees two additional KPI tiles: completion rate and average rating (with review count). All three v1 KPIs (revenue, completion, rating) are now visible together for the single-course case, all backed by ticket 02's tested service functions.
 
 The completion-rate tile must visibly reflect the recency-aware calculation — verify against a course with a recent enrollment spike that the number doesn't tank just because of new, not-yet-finished students.
 

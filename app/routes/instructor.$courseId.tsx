@@ -1652,6 +1652,7 @@ export default function InstructorCourseEditor({
             </Card>
           )}
         </TabsContent>
+
       </Tabs>
     </div>
   );

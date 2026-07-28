@@ -2,6 +2,8 @@
 
 **What to build:** An instructor sees where in their course students tend to stop progressing — a per-lesson drop-off funnel — reflecting true stopping points rather than just the last lesson marked complete.
 
+**Placement note:** unlike tickets 03–05 (which moved to the top-level `/instructor/analytics` page), this funnel is per-course by nature — it stays inside `instructor.$courseId.tsx` (e.g. its own tab or a section of the existing per-student view) rather than the cross-course page.
+
 This requires new aggregation logic, not just a new chart, since neither existing data path currently supports "furthest lesson reached":
 - `lesson_progress` has no `startedAt`, only a completion status — furthest-lesson-reached must be derived by joining completion status against lesson ordering.
 - `video_watch_events` is timestamped and append-only (the right shape for a true stopping point) but nothing currently aggregates it into a funnel.
