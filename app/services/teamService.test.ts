@@ -19,6 +19,7 @@ import {
   getOrCreateTeamForUser,
   isTeamAdmin,
   getTeamMembers,
+  getTeamAdmins,
 } from "./teamService";
 
 describe("teamService", () => {
@@ -148,6 +149,38 @@ describe("teamService", () => {
 
       const members = getTeamMembers(team.id);
       expect(members).toHaveLength(0);
+    });
+  });
+
+  describe("getTeamAdmins", () => {
+    it("returns only members with the admin role", () => {
+      const team = createTeam();
+      addTeamMember(team.id, base.user.id, schema.TeamMemberRole.Admin);
+      addTeamMember(team.id, base.instructor.id, schema.TeamMemberRole.Member);
+
+      const admins = getTeamAdmins(team.id);
+
+      expect(admins).toHaveLength(1);
+      expect(admins[0].userId).toBe(base.user.id);
+    });
+
+    it("returns multiple admins when a team has more than one", () => {
+      const team = createTeam();
+      addTeamMember(team.id, base.user.id, schema.TeamMemberRole.Admin);
+      addTeamMember(team.id, base.instructor.id, schema.TeamMemberRole.Admin);
+
+      const admins = getTeamAdmins(team.id);
+
+      expect(admins).toHaveLength(2);
+    });
+
+    it("returns empty array when a team has no admins", () => {
+      const team = createTeam();
+      addTeamMember(team.id, base.user.id, schema.TeamMemberRole.Member);
+
+      const admins = getTeamAdmins(team.id);
+
+      expect(admins).toHaveLength(0);
     });
   });
 });

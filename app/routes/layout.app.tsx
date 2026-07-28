@@ -13,7 +13,10 @@ import {
 } from "~/services/progressService";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { isTeamAdmin } from "~/services/teamService";
-import { getNotifications, getUnreadCount } from "~/services/notificationService";
+import {
+  getNotifications,
+  getUnreadCount,
+} from "~/services/notificationService";
 import { UserRole } from "~/db/schema";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -49,10 +52,12 @@ export async function loader({ request }: Route.LoaderArgs) {
     : [];
 
   const isInstructor = currentUser?.role === UserRole.Instructor;
+  const isAdminOfTeam = currentUserId ? isTeamAdmin(currentUserId) : false;
+  const canSeeNotifications = isInstructor || isAdminOfTeam;
   const unreadNotificationCount =
-    currentUserId && isInstructor ? getUnreadCount(currentUserId) : 0;
+    currentUserId && canSeeNotifications ? getUnreadCount(currentUserId) : 0;
   const recentNotifications =
-    currentUserId && isInstructor
+    currentUserId && canSeeNotifications
       ? getNotifications(currentUserId, 5, 0)
       : [];
 
@@ -70,7 +75,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     devCountry,
     countryTierInfo,
     countries: COUNTRIES,
-    isTeamAdmin: currentUserId ? isTeamAdmin(currentUserId) : false,
+    isTeamAdmin: isAdminOfTeam,
     unreadNotificationCount,
     recentNotifications,
   };

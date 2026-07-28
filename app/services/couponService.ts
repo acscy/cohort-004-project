@@ -1,6 +1,15 @@
 import { eq, and, isNull } from "drizzle-orm";
 import { db } from "~/db";
-import { coupons, purchases, enrollments } from "~/db/schema";
+import {
+  coupons,
+  purchases,
+  enrollments,
+  users,
+  courses,
+  NotificationType,
+} from "~/db/schema";
+import { createNotification } from "~/services/notificationService";
+import { getTeamAdmins } from "~/services/teamService";
 import crypto from "crypto";
 
 // ─── Coupon Service ───
@@ -114,6 +123,33 @@ export function redeemCoupon(
     .values({ userId, courseId: coupon.courseId })
     .returning()
     .get();
+
+  // 6. Notify all team admins of the redemption
+  const redeemer = db.select().from(users).where(eq(users.id, userId)).get();
+  const course = db
+    .select()
+    .from(courses)
+    .where(eq(courses.id, coupon.courseId))
+    .get();
+  const teamCoupons = getCouponsForTeam(coupon.teamId, coupon.courseId);
+  const remainingSeats = teamCoupons.filter(
+    (c) => c.redeemedByUserId === null
+  ).length;
+  const totalSeats = teamCoupons.length;
+
+  if (redeemer && course) {
+    const message = `${redeemer.name} redeemed a coupon for ${course.title} (${remainingSeats} of ${totalSeats} seats remaining)`;
+    const admins = getTeamAdmins(coupon.teamId);
+    for (const admin of admins) {
+      createNotification(
+        admin.userId,
+        NotificationType.CouponRedemption,
+        "Seat Claimed",
+        message,
+        "/team"
+      );
+    }
+  }
 
   return { ok: true, enrollment };
 }
