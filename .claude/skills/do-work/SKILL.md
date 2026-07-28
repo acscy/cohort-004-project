@@ -20,9 +20,9 @@ Done when: you can list every file or module you expect to touch, and why.
 
 ### 2. Implement
 
-Make the changes per the plan, following the loaded coding standards.
+For backend code (services, db, route loaders/actions), work one test at a time, tracer-bullet style: pick the thinnest next slice of the plan and drive it through a full **red → green → refactor** cycle before starting the next slice. Write the failing test first and confirm it fails for the reason you expect (**red**); write the minimum code to pass it (**green**); refactor with that test as your safety net. For frontend code, make the changes per the plan directly. Follow the loaded coding standards throughout.
 
-Done when: every file in the plan has been touched, and the diff matches what the plan described — no partial or stubbed-out pieces.
+Done when: every file in the plan has been touched, the diff matches what the plan described — no partial or stubbed-out pieces — and every backend behavior in it arrived through its own red/green/refactor cycle.
 
 ### 3. Drive the loop to green
 
@@ -31,5 +31,5 @@ Run `pnpm typecheck` and `pnpm test`. Either failing is **red** — read the fai
 Done when: both commands exit clean in the same run — the loop is **green**.
 
 ### 4. Commit
-Once typecheck and tests pass, commit the work.
 
+Once typecheck and tests pass, commit the work.
